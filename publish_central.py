@@ -98,11 +98,18 @@ def upload_bundle_to_central(bundle_path: str, token: str, publishing_type: str 
     body.extend(file_bytes)
     body.extend(f"\r\n--{boundary}--\r\n".encode("utf-8"))
 
-    # Format authorization token
-    # Central portal accepts Bearer token (either direct token or base64 token)
-    auth_header = token.strip()
-    if not auth_header.startswith("Bearer "):
-        auth_header = f"Bearer {auth_header}"
+    # Format authorization token:
+    # Central portal expects Authorization: Bearer <base64(username:password)>
+    token_str = token.strip()
+    if token_str.startswith("Bearer "):
+        token_str = token_str[7:].strip()
+    
+    # If the user passed raw 'username:password', encode to base64
+    if ":" in token_str and not token_str.endswith("="):
+        import base64
+        token_str = base64.b64encode(token_str.encode("utf-8")).decode("utf-8")
+
+    auth_header = f"Bearer {token_str}"
 
     req = urllib.request.Request(url, data=body, method="POST")
     req.add_header("Authorization", auth_header)
