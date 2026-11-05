@@ -66,13 +66,21 @@ jobs:
           find models/ -name "*.onnx" -exec ls -lh {} \;
 
       - name: Extract required operators configuration
+        id: ops-config
         run: |
           python onnxruntime/tools/python/convert_onnx_models_to_ort.py \
             ./models \
             --enable_type_reduction
 
-          echo "=== Generated required_operators.config ==="
-          cat models/required_operators.config
+          CONFIG_FILE=$(find ./models -maxdepth 1 -name "required_operators*.config" | grep -v "with_runtime_opt" | head -n 1)
+          if [ -z "$CONFIG_FILE" ]; then
+            CONFIG_FILE=$(find ./models -maxdepth 1 -name "required_operators*.config" | head -n 1)
+          fi
+          echo "Selected config file: $CONFIG_FILE"
+          echo "config_path=$CONFIG_FILE" >> "$GITHUB_OUTPUT"
+
+          echo "=== Content of $CONFIG_FILE ==="
+          cat "$CONFIG_FILE"
 
       - name: Locate Android SDK and NDK
         id: android-env
@@ -91,7 +99,7 @@ jobs:
           python3 onnxruntime/tools/ci_build/github/android/build_aar_package.py \
             repo/build_settings.json \
             --config Release \
-            --include_ops_by_config ./models/required_operators.config \
+            --include_ops_by_config "${{ steps.ops-config.outputs.config_path }}" \
             --android_sdk_path "$ANDROID_HOME" \
             --android_ndk_path "${{ steps.android-env.outputs.ndk_path }}" \
             --build_dir ./build
