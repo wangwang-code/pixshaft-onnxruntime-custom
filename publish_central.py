@@ -170,19 +170,18 @@ def main():
     for f in files_to_process:
         compute_checksums(f)
         gpg_sign_file(f, args.gpg_passphrase if args.gpg_passphrase else None)
-        asc_file = f + ".asc"
-        if os.path.exists(asc_file):
-            compute_checksums(asc_file)
 
-    # 5. Build bundle.zip
+    # 5. Build bundle.zip with standard Maven coordinate path structure
     bundle_zip = os.path.join(os.path.dirname(args.out_dir) or ".", "bundle.zip")
-    print(f"Creating bundle: {bundle_zip} ...")
+    group_rel_path = args.group_id.replace(".", "/")
+    target_rel_dir = f"{group_rel_path}/{args.artifact_id}/{args.version}"
+    print(f"Creating bundle: {bundle_zip} with directory path: {target_rel_dir} ...")
     with zipfile.ZipFile(bundle_zip, "w", zipfile.ZIP_DEFLATED) as zf:
         for root, _, filenames in os.walk(args.out_dir):
             for filename in filenames:
                 file_full = os.path.join(root, filename)
-                # Keep file flat in bundle
-                zf.write(file_full, arcname=filename)
+                arc_name = f"{target_rel_dir}/{filename}"
+                zf.write(file_full, arcname=arc_name)
 
     print(f"Bundle successfully created: {bundle_zip} (size: {os.path.getsize(bundle_zip)} bytes)")
 

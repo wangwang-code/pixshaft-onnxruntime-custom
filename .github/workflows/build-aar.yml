@@ -18,7 +18,11 @@ on:
       artifact_version:
         description: 'Version to publish (default: auto for 1.24.3-shaft-{commit_hash})'
         required: false
-        default: 'auto' 
+        default: 'auto'
+      reuse_cached_aar:
+        description: 'Reuse previously built AAR (fast publish, skips 30m compilation)'
+        type: boolean
+        default: true 
 
 permissions:
   contents: write
@@ -30,7 +34,29 @@ jobs:
       - name: Checkout this repository
         uses: actions/checkout@v4
 
+      - name: Check for cached AAR artifact
+        id: check-cache
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event.inputs.reuse_cached_aar }}" != "false" ]; then
+            echo "Searching for previous successful AAR artifact..."
+            RUN_ID=$(gh run list --repo "${{ github.repository }}" --workflow build-aar.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+            if [ -n "$RUN_ID" ] && [ "$RUN_ID" != "null" ]; then
+              echo "Downloading AAR from run $RUN_ID..."
+              mkdir -p /tmp/cached_aar
+              if gh run download "$RUN_ID" --repo "${{ github.repository }}" -n onnxruntime-android-custom -D /tmp/cached_aar 2>/dev/null; then
+                if [ -f /tmp/cached_aar/onnxruntime-android-custom.aar ]; then
+                  cp /tmp/cached_aar/onnxruntime-android-custom.aar ./onnxruntime-android-custom.aar
+                  echo "Found cached AAR ($(stat -c%s ./onnxruntime-android-custom.aar) bytes). Skipping C++ compilation!"
+                  echo "found=true" >> "$GITHUB_OUTPUT"
+                fi
+              fi
+            fi
+          fi
+
       - name: Checkout ONNX Runtime
+        if: steps.check-cache.outputs.found != 'true'
         uses: actions/checkout@v4
         with:
           repository: microsoft/onnxruntime
@@ -55,12 +81,14 @@ jobs:
           java-version: '17'
 
       - name: Set up ccache
+        if: steps.check-cache.outputs.found != 'true'
         uses: hendrikmuhs/ccache-action@v1.2
         with:
           key: ${{ runner.os }}-onnxruntime-ccache
           max-size: 2G
 
       - name: Locate Android SDK and NDK
+        if: steps.check-cache.outputs.found != 'true'
         id: android-env
         run: |
           if [ -n "$ANDROID_NDK_LATEST_HOME" ] && [ -d "$ANDROID_NDK_LATEST_HOME" ]; then
@@ -78,6 +106,7 @@ jobs:
           cat ./required_operators.config
 
       - name: Build custom AAR package (arm64-v8a)
+        if: steps.check-cache.outputs.found != 'true'
         run: |
           python3 onnxruntime/tools/ci_build/github/android/build_aar_package.py \
             ./build_settings.json \
@@ -90,13 +119,17 @@ jobs:
       - name: Inspect generated AAR and measure size
         id: measure
         run: |
-          AAR_FILE=$(find ./build/aar_out -name "*.aar" | head -n 1)
-          if [ -z "$AAR_FILE" ]; then
-            echo "Error: No AAR file found!"
-            exit 1
+          if [ ! -f ./onnxruntime-android-custom.aar ]; then
+            AAR_FILE=$(find ./build/aar_out -name "*.aar" 2>/dev/null | head -n 1)
+            if [ -z "$AAR_FILE" ]; then
+              echo "Error: No AAR file found!"
+              exit 1
+            fi
+            echo "Found AAR: $AAR_FILE"
+            cp "$AAR_FILE" ./onnxruntime-android-custom.aar
+          else
+            echo "Using existing AAR: ./onnxruntime-android-custom.aar"
           fi
-          echo "Found AAR: $AAR_FILE"
-          cp "$AAR_FILE" ./onnxruntime-android-custom.aar
 
           # Inspect .so sizes inside AAR
           mkdir -p ./aar_extracted
