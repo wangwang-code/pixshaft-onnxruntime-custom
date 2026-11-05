@@ -74,9 +74,9 @@ def compute_checksums(file_path: str):
 
 
 def gpg_sign_file(file_path: str, passphrase: str = None):
-    cmd = ["gpg", "--batch", "--yes", "--armor", "--detach-sign"]
+    cmd = ["gpg", "--batch", "--yes", "--armor", "--pinentry-mode", "loopback", "--detach-sign"]
     if passphrase:
-        cmd.extend(["--pinentry-mode", "loopback", "--passphrase", passphrase])
+        cmd.extend(["--passphrase", passphrase])
     cmd.append(file_path)
     res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode != 0:
@@ -170,8 +170,9 @@ def main():
     for f in files_to_process:
         compute_checksums(f)
         gpg_sign_file(f, args.gpg_passphrase if args.gpg_passphrase else None)
-        # Central also requires checksums for asc or bundle completeness
-        # but primarily requires .asc and checksums for the main files
+        asc_file = f + ".asc"
+        if os.path.exists(asc_file):
+            compute_checksums(asc_file)
 
     # 5. Build bundle.zip
     bundle_zip = os.path.join(os.path.dirname(args.out_dir) or ".", "bundle.zip")
