@@ -10,15 +10,15 @@ on:
       create_release:
         description: 'Publish as GitHub Release'
         type: boolean
-        default: true
+        default: false
       publish_to_central:
         description: 'Publish to Maven Central Portal'
         type: boolean
         default: true
       artifact_version:
-        description: 'Version to publish to Maven Central'
-        required: true
-        default: '1.24.3' 
+        description: 'Version to publish (default: auto for 1.24.3-shaft-{commit_hash})'
+        required: false
+        default: 'auto' 
 
 permissions:
   contents: write
@@ -147,13 +147,19 @@ jobs:
           SONATYPE_CENTRAL_TOKEN: ${{ secrets.SONATYPE_CENTRAL_TOKEN }}
         run: |
           if [ -n "$GPG_PRIVATE_KEY" ]; then
-            echo "$GPG_PRIVATE_KEY" | gpg --batch --import --pinentry-mode loopback || true
+            echo "$GPG_PRIVATE_KEY" | gpg --batch --import || true
           fi
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          VER="${{ github.event.inputs.artifact_version }}"
+          if [ -z "$VER" ] || [ "$VER" = "auto" ]; then
+            VER="1.24.3-shaft-${SHORT_SHA}"
+          fi
+          echo "Publishing version to Maven Central: $VER"
           python3 ./publish_central.py \
             --aar ./onnxruntime-android-custom.aar \
             --group-id io.github.wangwang-code \
             --artifact-id onnxruntime-android-shaft \
-            --version "${{ github.event.inputs.artifact_version || '1.24.3' }}" \
+            --version "$VER" \
             --gpg-passphrase "$GPG_PASSPHRASE" \
             --central-token "$SONATYPE_CENTRAL_TOKEN" \
             --publishing-type AUTOMATIC
