@@ -157,3 +157,44 @@ jobs:
             --repo "${{ github.repository }}" \
             --title "ONNX Runtime Custom AAR ($TAG_NAME)" \
             --notes "Custom minimal ONNX Runtime AAR for Pixiv-Shaft (arm64-v8a only, reduced operator set for Comic-Text-Detector & Manga-OCR, preserves native .onnx format support)."
+
+      - name: Deploy to mvn-repo branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /tmp/mvn-repo
+          cd /tmp/mvn-repo
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+          git fetch origin mvn-repo 2>/dev/null || true
+          git checkout mvn-repo 2>/dev/null || git checkout --orphan mvn-repo
+
+          SRC_MAVEN_DIR="$GITHUB_WORKSPACE/build/aar_out/Release/com/microsoft/onnxruntime/onnxruntime-android"
+          DEST_MAVEN_DIR="com/microsoft/onnxruntime/onnxruntime-android"
+          mkdir -p "$DEST_MAVEN_DIR"
+          cp -r "$SRC_MAVEN_DIR"/* "$DEST_MAVEN_DIR"/
+
+          if [ -d "$DEST_MAVEN_DIR/1.24.3" ]; then
+            rm -rf "$DEST_MAVEN_DIR/1.24.3-custom"
+            cp -r "$DEST_MAVEN_DIR/1.24.3" "$DEST_MAVEN_DIR/1.24.3-custom"
+            cd "$DEST_MAVEN_DIR/1.24.3-custom"
+            for f in *1.24.3*; do
+              mv "$f" "${f//1.24.3/1.24.3-custom}"
+            done
+            if [ -f onnxruntime-android-1.24.3-custom.pom ]; then
+              sed -i 's/<version>1.24.3<\/version>/<version>1.24.3-custom<\/version>/g' onnxruntime-android-1.24.3-custom.pom
+            fi
+            for f in onnxruntime-android-1.24.3-custom.aar onnxruntime-android-1.24.3-custom.pom; do
+              if [ -f "$f" ]; then
+                md5sum "$f" | awk '{print $1}' > "${f}.md5"
+                sha1sum "$f" | awk '{print $1}' > "${f}.sha1"
+              fi
+            done
+            cd /tmp/mvn-repo
+          fi
+
+          git add -A
+          git commit -m "deploy: update onnxruntime-android maven artifacts (${{ github.sha }})" || echo "No changes to commit"
+          git push -u origin mvn-repo --force
