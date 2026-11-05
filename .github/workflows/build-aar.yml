@@ -1,0 +1,151 @@
+name: Build Custom ONNX Runtime Android AAR
+
+on:
+  workflow_dispatch:
+    inputs:
+      ort_version:
+        description: 'ONNX Runtime Git tag/branch'
+        required: true
+        default: 'v1.24.3'
+      create_release:
+        description: 'Publish as GitHub Release'
+        type: boolean
+        default: true
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v4
+        with:
+          path: repo
+
+      - name: Checkout ONNX Runtime
+        uses: actions/checkout@v4
+        with:
+          repository: microsoft/onnxruntime
+          ref: ${{ github.event.inputs.ort_version || 'v1.24.3' }}
+          submodules: recursive
+          path: onnxruntime
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Install Python build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install flatbuffers numpy onnx onnxruntime packaging
+
+      - name: Download Pixiv-Shaft models
+        run: |
+          mkdir -p models
+          echo "Downloading Comic-Text-Detector model..."
+          curl -L -o ctd.zip "https://github.com/CeuiLiSA/Pixiv-Shaft/releases/download/v4.5.1/comic-text-detector.zip"
+          unzip -q ctd.zip -d models/
+
+          echo "Downloading Manga-OCR model..."
+          curl -L -o ocr.zip "https://github.com/CeuiLiSA/Pixiv-Shaft/releases/download/v4.5.1/manga-ocr-base-int8.zip"
+          unzip -q ocr.zip -d models/
+
+          echo "Downloaded models:"
+          find models/ -name "*.onnx" -exec ls -lh {} \;
+
+      - name: Extract required operators configuration
+        run: |
+          python onnxruntime/tools/python/convert_onnx_models_to_ort.py \
+            ./models \
+            --enable_type_reduction
+
+          echo "=== Generated required_operators.config ==="
+          cat models/required_operators.config
+
+      - name: Locate Android SDK and NDK
+        id: android-env
+        run: |
+          if [ -n "$ANDROID_NDK_LATEST_HOME" ] && [ -d "$ANDROID_NDK_LATEST_HOME" ]; then
+            NDK_PATH="$ANDROID_NDK_LATEST_HOME"
+          else
+            NDK_PATH=$(ls -d ${ANDROID_HOME}/ndk/* 2>/dev/null | tail -n 1)
+          fi
+          echo "Using Android SDK: $ANDROID_HOME"
+          echo "Using Android NDK: $NDK_PATH"
+          echo "ndk_path=$NDK_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Build custom AAR package (arm64-v8a)
+        run: |
+          python3 onnxruntime/tools/ci_build/github/android/build_aar_package.py \
+            repo/build_settings.json \
+            --config Release \
+            --include_ops_by_config ./models/required_operators.config \
+            --android_sdk_path "$ANDROID_HOME" \
+            --android_ndk_path "${{ steps.android-env.outputs.ndk_path }}" \
+            --build_dir ./build
+
+      - name: Inspect generated AAR and measure size
+        id: measure
+        run: |
+          AAR_FILE=$(find ./build/aar_out -name "*.aar" | head -n 1)
+          if [ -z "$AAR_FILE" ]; then
+            echo "Error: No AAR file found!"
+            exit 1
+          fi
+          echo "Found AAR: $AAR_FILE"
+          cp "$AAR_FILE" ./onnxruntime-android-custom.aar
+
+          # Inspect .so sizes inside AAR
+          mkdir -p ./aar_extracted
+          unzip -q ./onnxruntime-android-custom.aar -d ./aar_extracted
+
+          RAW_SO_SIZE=$(stat -c%s ./aar_extracted/jni/arm64-v8a/libonnxruntime.so)
+          RAW_SO_MB=$(python3 -c "print(round($RAW_SO_SIZE / 1024 / 1024, 2))")
+          AAR_TOTAL_SIZE=$(stat -c%s ./onnxruntime-android-custom.aar)
+          AAR_TOTAL_MB=$(python3 -c "print(round($AAR_TOTAL_SIZE / 1024 / 1024, 2))")
+
+          echo "raw_so_mb=$RAW_SO_MB" >> "$GITHUB_OUTPUT"
+          echo "aar_total_mb=$AAR_TOTAL_MB" >> "$GITHUB_OUTPUT"
+
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ### 🚀 Custom ONNX Runtime AAR Build Summary
+          - **AAR Total Size**: \`${AAR_TOTAL_MB} MB\` (${AAR_TOTAL_SIZE} bytes)
+          - **libonnxruntime.so (arm64-v8a uncompressed)**: \`${RAW_SO_MB} MB\` (${RAW_SO_SIZE} bytes)
+          - **Architectures included**: \`arm64-v8a\` only
+          - **Models Covered**:
+            - Comic-Text-Detector (\`comictextdetector.pt.onnx\`)
+            - Manga-OCR Encoder (\`encoder_model_quantized.onnx\`)
+            - Manga-OCR Decoder (\`decoder_model_quantized.onnx\`)
+          - **Legacy .onnx Compatibility**: 100% Native (.onnx parser preserved)
+          EOF
+
+      - name: Upload AAR Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: onnxruntime-android-custom
+          path: ./onnxruntime-android-custom.aar
+
+      - name: Create Release
+        if: ${{ (github.event.inputs.create_release == 'true') || startsWith(github.ref, 'refs/tags/') }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          if [[ "$TAG_NAME" != v* ]]; then
+            TAG_NAME="v1.24.3-shaft-${{ github.run_number }}"
+          fi
+          gh release create "$TAG_NAME" ./onnxruntime-android-custom.aar \
+            --title "ONNX Runtime Custom AAR ($TAG_NAME)" \
+            --notes "Custom minimal ONNX Runtime AAR for Pixiv-Shaft (arm64-v8a only, reduced operator set for Comic-Text-Detector & Manga-OCR, preserves native .onnx format support)."

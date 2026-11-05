@@ -1,0 +1,10 @@
+*.aar
+*.zip
+models/
+build/
+aar_out/
+aar_extracted/
+.idea/
+.vscode/
+*.pyc
+__pycache__/
