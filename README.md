@@ -37,7 +37,8 @@ Pixiv-Shaft 本地漫画离线翻译功能依赖 3 个模型（文字检测模�
 
 ```toml
 [versions]
-onnxRuntime = "1.24.3-shaft-53b648c"
+# 使用 Gradle 动态版本语法，自动解析并追踪最新的 SHA 构建版本，无需硬编码特定的 commit hash
+onnxRuntime = "1.24.3-shaft-+"
 
 [libraries]
 onnxRuntime = { module = "io.github.wangwang-code:onnxruntime-android-shaft", version.ref = "onnxRuntime" }
