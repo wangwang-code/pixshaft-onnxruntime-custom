@@ -12,7 +12,6 @@
     "--build_shared_lib",
     "--enable_reduced_operator_type_support",
     "--use_xnnpack",
-    "--use_ccache",
     "--cmake_extra_defines=onnxruntime_BUILD_UNIT_TESTS=OFF",
     "--cmake_extra_defines=onnxruntime_DEV_MODE=OFF",
     "--cmake_extra_defines=CMAKE_CXX_SCAN_FOR_MODULES=OFF",

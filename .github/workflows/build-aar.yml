@@ -35,6 +35,11 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install flatbuffers numpy packaging
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
