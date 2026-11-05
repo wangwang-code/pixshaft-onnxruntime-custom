@@ -66,14 +66,15 @@ jobs:
       - name: Extract required operators configuration
         id: ops-config
         run: |
+          # Disable optimization during conversion so operators from raw un-fused ONNX graphs
+          # (e.g. ReduceMean, Pow, Erf in LayerNorm / GELU) are preserved for legacy .onnx model runtime!
+          export ORT_CONVERT_ONNX_MODELS_TO_ORT_OPTIMIZATION_LEVEL=disable
+
           python onnxruntime/tools/python/convert_onnx_models_to_ort.py \
             ./models \
             --enable_type_reduction
 
-          CONFIG_FILE=$(find ./models -maxdepth 1 -name "required_operators*.config" | grep -v "with_runtime_opt" | head -n 1)
-          if [ -z "$CONFIG_FILE" ]; then
-            CONFIG_FILE=$(find ./models -maxdepth 1 -name "required_operators*.config" | head -n 1)
-          fi
+          CONFIG_FILE=$(find ./models -maxdepth 1 -name "required_operators*.config" | head -n 1)
           echo "Selected config file: $CONFIG_FILE"
           echo "config_path=$CONFIG_FILE" >> "$GITHUB_OUTPUT"
 
