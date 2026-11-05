@@ -41,42 +41,11 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Python build tools
-        run: |
-          python -m pip install --upgrade pip
-          pip install flatbuffers numpy onnx onnxruntime packaging
-
-      - name: Download Pixiv-Shaft models
-        run: |
-          mkdir -p models
-          echo "Downloading Comic-Text-Detector model..."
-          curl -L -o ctd.zip "https://github.com/CeuiLiSA/Pixiv-Shaft/releases/download/v4.5.1/comic-text-detector.zip"
-          unzip -q ctd.zip -d models/
-
-          echo "Downloading Manga-OCR model..."
-          curl -L -o ocr.zip "https://github.com/CeuiLiSA/Pixiv-Shaft/releases/download/v4.5.1/manga-ocr-base-int8.zip"
-          unzip -q ocr.zip -d models/
-
-          echo "Downloaded models:"
-          find models/ -name "*.onnx" -exec ls -lh {} \;
-
-      - name: Extract required operators configuration
-        id: ops-config
-        run: |
-          # Disable optimization during conversion so operators from raw un-fused ONNX graphs
-          # (e.g. ReduceMean, Pow, Erf in LayerNorm / GELU) are preserved for legacy .onnx model runtime!
-          export ORT_CONVERT_ONNX_MODELS_TO_ORT_OPTIMIZATION_LEVEL=disable
-
-          python onnxruntime/tools/python/convert_onnx_models_to_ort.py \
-            ./models \
-            --enable_type_reduction
-
-          CONFIG_FILE=$(find ./models -maxdepth 1 -name "required_operators*.config" | head -n 1)
-          echo "Selected config file: $CONFIG_FILE"
-          echo "config_path=$CONFIG_FILE" >> "$GITHUB_OUTPUT"
-
-          echo "=== Content of $CONFIG_FILE ==="
-          cat "$CONFIG_FILE"
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-onnxruntime-ccache
+          max-size: 2G
 
       - name: Locate Android SDK and NDK
         id: android-env
@@ -90,12 +59,17 @@ jobs:
           echo "Using Android NDK: $NDK_PATH"
           echo "ndk_path=$NDK_PATH" >> "$GITHUB_OUTPUT"
 
+      - name: Verify operator configuration
+        run: |
+          echo "=== Content of required_operators.config ==="
+          cat ./required_operators.config
+
       - name: Build custom AAR package (arm64-v8a)
         run: |
           python3 onnxruntime/tools/ci_build/github/android/build_aar_package.py \
             ./build_settings.json \
             --config Release \
-            --include_ops_by_config "${{ steps.ops-config.outputs.config_path }}" \
+            --include_ops_by_config ./required_operators.config \
             --android_sdk_path "$ANDROID_HOME" \
             --android_ndk_path "${{ steps.android-env.outputs.ndk_path }}" \
             --build_dir ./build
@@ -128,11 +102,8 @@ jobs:
           - **AAR Total Size**: \`${AAR_TOTAL_MB} MB\` (${AAR_TOTAL_SIZE} bytes)
           - **libonnxruntime.so (arm64-v8a uncompressed)**: \`${RAW_SO_MB} MB\` (${RAW_SO_SIZE} bytes)
           - **Architectures included**: \`arm64-v8a\` only
-          - **Models Covered**:
-            - Comic-Text-Detector (\`comictextdetector.pt.onnx\`)
-            - Manga-OCR Encoder (\`encoder_model_quantized.onnx\`)
-            - Manga-OCR Decoder (\`decoder_model_quantized.onnx\`)
-          - **Legacy .onnx Compatibility**: 100% Native (.onnx parser preserved)
+          - **Operators Profile**: Merged (Raw ONNX ops + Runtime Fused ops)
+          - **Optimizations**: ccache enabled, LTO stripped for faster CI
           EOF
 
       - name: Upload AAR Artifact
@@ -153,7 +124,7 @@ jobs:
           gh release create "$TAG_NAME" ./onnxruntime-android-custom.aar \
             --repo "${{ github.repository }}" \
             --title "ONNX Runtime Custom AAR ($TAG_NAME)" \
-            --notes "Custom minimal ONNX Runtime AAR for Pixiv-Shaft (arm64-v8a only, reduced operator set for Comic-Text-Detector & Manga-OCR, preserves native .onnx format support)."
+            --notes "Custom minimal ONNX Runtime AAR for Pixiv-Shaft (arm64-v8a only, merged operator set covering raw ONNX ops and runtime fused ops like MatMulIntegerToFloat)."
 
       - name: Deploy to mvn-repo branch
         env:
