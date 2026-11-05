@@ -11,9 +11,6 @@ on:
         description: 'Publish as GitHub Release'
         type: boolean
         default: true
-  push:
-    tags:
-      - 'v*'
 
 permissions:
   contents: write
