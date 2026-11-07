@@ -39,8 +39,8 @@ Pixiv-Shaft 本地漫画离线翻译功能依赖 3 个模型（文字检测模�
    针对移动端漫画翻译纯密集张量（Dense Tensor）场景，彻底关闭无用的稀疏矩阵存储调度与 Optional 包装。
 3. **移动端无用 ARM SVE 向量扩展切除 (`onnxruntime_USE_SVE=OFF`)**：
    切除移动端 Linux 用户态未开放的 SVE / SVE2 向量汇编内核，回退至成熟高能效的 NEON / XNNPACK 硬件流水线。
-4. **LLD 链接器相同代码折叠与符号隔离 (`-Wl,--icf=all -Wl,--exclude-libs,ALL`)**：
-   跨编译单元折叠数百个相同机器码的 C++ 模板实例化，并强制隐藏静态三方库符号泄露。
+4. **LLD 链接器相同代码安全折叠 (`-Wl,--icf=safe`)**：
+   跨编译单元折叠数百个机器码相同的只读 C++ 函数与模板实例化，有效精简 `.text` 段体积。
 5. **无引用 C/C++ 头文件无损剥离 ([`strip_aar_headers.py`](./scripts/strip_aar_headers.py))**：
    针对 Kotlin/Java JNI 纯净宿主环境，在打包期利用底层 ZIP 记录重构技术，零重压缩直接剔除 AAR 内 890 KB 的 `headers/` 目录。
 6. **全链路 Android 15 16 KB 页面对齐与 CI 审计**：

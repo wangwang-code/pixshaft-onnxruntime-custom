@@ -47,8 +47,16 @@ jobs:
             fi
           fi
 
-      - name: Checkout ONNX Runtime
+      - name: Cache ONNX Runtime source tree
+        id: cache-ort-src
         if: steps.check-cache.outputs.found != 'true'
+        uses: actions/cache@v4
+        with:
+          path: onnxruntime
+          key: ort-source-${{ github.event.inputs.ort_version || 'v1.24.3' }}
+
+      - name: Checkout ONNX Runtime
+        if: steps.check-cache.outputs.found != 'true' && steps.cache-ort-src.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
         with:
           repository: microsoft/onnxruntime
