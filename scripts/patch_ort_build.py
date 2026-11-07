@@ -78,8 +78,8 @@ def patch_java_jni(ort_root: str):
     replacement = (
         "target_link_libraries(onnxruntime4j_jni PUBLIC onnxruntime)\n"
         "if (ANDROID)\n"
-        "  file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/jni_export.lds \"{\\n  global:\\n    Java_*;\\n    JNI_OnLoad;\\n    JNI_OnUnload;\\n  local:\\n    *;\\n};\\n\")\n"
-        "  target_link_options(onnxruntime4j_jni PRIVATE \"-Wl,--version-script=${CMAKE_CURRENT_BINARY_DIR}/jni_export.lds\")\n"
+        "  file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/jni_export.lds \"{\\n  global:\\n    Java_*;\\n    JNI_OnLoad;\\n  local:\\n    *;\\n};\\n\")\n"
+        "  target_link_options(onnxruntime4j_jni PRIVATE \"-Wl,--version-script=${CMAKE_CURRENT_BINARY_DIR}/jni_export.lds\" \"-Wl,--undefined-version\")\n"
         "endif()\n"
     )
     if target in content and "jni_export.lds" not in content:
