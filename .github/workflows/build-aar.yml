@@ -121,6 +121,11 @@ jobs:
           echo "=== Content of required_operators.config ==="
           cat ./required_operators.config
 
+      - name: Patch ORT source for docstring stripping and vcpkg optimizations
+        if: steps.check-cache.outputs.found != 'true'
+        run: |
+          python3 ./scripts/patch_ort_build.py onnxruntime
+
       - name: Build custom AAR package (arm64-v8a)
         if: steps.check-cache.outputs.found != 'true'
         env:
