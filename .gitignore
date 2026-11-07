@@ -6,6 +6,7 @@ aar_out/
 aar_extracted/
 tmp*/
 artifacts_out/
+artifacts_final/
 smoke_test/
 *.dex
 *.class
