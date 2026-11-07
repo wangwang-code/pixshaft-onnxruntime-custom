@@ -29,6 +29,25 @@ Pixiv-Shaft 本地漫画离线翻译功能依赖 3 个模型（文字检测模�
 
 ---
 
+## ⚡ 全栈深度抽脂与 Android 15 合规加固
+
+在 100% 保持存量 `.onnx` 原始模型加载能力的前提下，实施系统性抽脂优化：
+
+1. **传统 ML 算子域外科手术切除 (`--disable_ml_ops`)**：
+   彻底剔除 `ai.onnx.ml` 命名空间下所有传统机器学习算子（SVM、随机森林 TreeEnsemble、KNN、线性回归、ZipMap 等），消除纯死代码。
+2. **稀疏张量与 Optional 类型引擎剥离 (`DISABLE_SPARSE_TENSORS` / `DISABLE_OPTIONAL_TYPE`)**：
+   针对移动端漫画翻译纯密集张量（Dense Tensor）场景，彻底关闭无用的稀疏矩阵存储调度与 Optional 包装。
+3. **移动端无用 ARM SVE 向量扩展切除 (`onnxruntime_USE_SVE=OFF`)**：
+   切除移动端 Linux 用户态未开放的 SVE / SVE2 向量汇编内核，回退至成熟高能效的 NEON / XNNPACK 硬件流水线。
+4. **LLD 链接器相同代码折叠与符号隔离 (`-Wl,--icf=all -Wl,--exclude-libs,ALL`)**：
+   跨编译单元折叠数百个相同机器码的 C++ 模板实例化，并强制隐藏静态三方库符号泄露。
+5. **无引用 C/C++ 头文件无损剥离 ([`strip_aar_headers.py`](./scripts/strip_aar_headers.py))**：
+   针对 Kotlin/Java JNI 纯净宿主环境，在打包期利用底层 ZIP 记录重构技术，零重压缩直接剔除 AAR 内 890 KB 的 `headers/` 目录。
+6. **全链路 Android 15 16 KB 页面对齐与 CI 审计**：
+   显式注入 `-Wl,-z,max-page-size=16384`，并在 CI 中内建自动化 ELF `p_align` 断言，确保所有原生动态库对齐跨度均为 `0x4000`。
+
+---
+
 ## 📦 如何在项目中引入
 
 由于已正式发布至 **Maven Central**，无需在 `build.gradle` 中添加任何自定义 Maven 源（如 JitPack 或 GitHub raw），直接使用项目标配的 `mavenCentral()` 即可。

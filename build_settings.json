@@ -8,6 +8,7 @@
     "--android",
     "--parallel",
     "--use_cache",
+    "--disable_ml_ops",
     "--cmake_generator=Ninja",
     "--build_java",
     "--build_shared_lib",
@@ -15,9 +16,13 @@
     "--use_xnnpack",
     "--cmake_extra_defines=CMAKE_C_COMPILER_LAUNCHER=ccache",
     "--cmake_extra_defines=CMAKE_CXX_COMPILER_LAUNCHER=ccache",
+    "--cmake_extra_defines=onnxruntime_DISABLE_SPARSE_TENSORS=ON",
+    "--cmake_extra_defines=onnxruntime_DISABLE_OPTIONAL_TYPE=ON",
+    "--cmake_extra_defines=onnxruntime_USE_SVE=OFF",
     "--cmake_extra_defines=onnxruntime_BUILD_UNIT_TESTS=OFF",
     "--cmake_extra_defines=onnxruntime_DEV_MODE=OFF",
     "--cmake_extra_defines=CMAKE_CXX_SCAN_FOR_MODULES=OFF",
+    "--cmake_extra_defines=CMAKE_SHARED_LINKER_FLAGS=-Wl,--icf=all -Wl,--exclude-libs,ALL -Wl,-z,max-page-size=16384",
     "--skip_tests"
   ]
 }
