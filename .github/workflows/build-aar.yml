@@ -171,47 +171,7 @@ jobs:
 
       - name: Audit 16 KB Page Alignment (Android 15)
         run: |
-          python3 - << 'EOF'
-          import struct, sys, glob
-
-          so_files = glob.glob('./aar_extracted/**/*.so', recursive=True)
-          if not so_files:
-              print("Error: No .so files found to audit!")
-              sys.exit(1)
-
-          all_aligned = True
-          table_rows = []
-          for path in sorted(so_files):
-              with open(path, "rb") as f:
-                  data = f.read(64)
-                  if data[:4] != b"\x7fELF":
-                      continue
-                  e_phoff = struct.unpack("<Q", data[32:40])[0]
-                  e_phentsize = struct.unpack("<H", data[54:56])[0]
-                  e_phnum = struct.unpack("<H", data[56:58])[0]
-                  f.seek(e_phoff)
-                  max_align = 0
-                  for _ in range(e_phnum):
-                      ph = f.read(e_phentsize)
-                      p_type, _, _, _, _, _, _, p_align = struct.unpack("<IIQQQQQQ", ph[:56])
-                      if p_type == 1 and p_align > max_align:
-                          max_align = p_align
-                  is_ok = max_align >= 0x4000
-                  if not is_ok:
-                      all_aligned = False
-                  status_icon = "✅ 16 KB (0x4000)" if is_ok else "❌ NOT ALIGNED"
-                  table_rows.append(f"| `{path}` | `0x{max_align:x}` ({max_align} B) | {status_icon} |")
-                  print(f"[{'PASS' if is_ok else 'FAIL'}] {path}: max PT_LOAD align = 0x{max_align:x} ({max_align})")
-
-          summary_content = "\n### 🛡️ Android 15 (16 KB Page Alignment) Audit\n| Library | Max PT_LOAD Align | Status |\n| :--- | :--- | :--- |\n" + "\n".join(table_rows) + "\n"
-          with open(sys.argv[1], "a", encoding="utf-8") as f_sum:
-              f_sum.write(summary_content)
-
-          if not all_aligned:
-              print("Error: One or more native libraries violate 16 KB page alignment!")
-              sys.exit(1)
-          print("All native libraries passed 16 KB page alignment audit!")
-          EOF "$GITHUB_STEP_SUMMARY"
+          python3 ./scripts/audit_page_size.py ./aar_extracted
 
       - name: Upload AAR Artifact
         uses: actions/upload-artifact@v4
