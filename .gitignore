@@ -4,6 +4,8 @@ models/
 build/
 aar_out/
 aar_extracted/
+tmp*/
+dist*/
 .idea/
 .vscode/
 *.pyc
