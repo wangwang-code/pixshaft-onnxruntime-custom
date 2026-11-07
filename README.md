@@ -41,15 +41,13 @@ Pixiv-Shaft 本地漫画离线翻译功能依赖 3 个模型（文字检测模�
    切除移动端 Linux 用户态未开放的 SVE / SVE2 向量汇编内核，回退至成熟高能效的 NEON / XNNPACK 硬件流水线。
 4. **Arm KleidiAI 冗余微内核剥离 (`--no_kleidiai`)**：
    针对移动端 Cortex-A 系列处理器，全面收敛至高能效的 XNNPACK / NEON 汇编硬件流水线，剥离桌面与服务器端的 KleidiAI SVE/SME 静态库。
-5. **LLVM ThinLTO 全局跨模块死代码消除 (`--enable_lto`)**：
-   在全程序 AST 级别跨编译单元消除从未被调用的底层重载与虚函数表。
-6. **LLD 链接器相同代码安全折叠与展开抑制 (`-Wl,--icf=safe` / `-fno-unroll-loops`)**：
+5. **LLD 链接器相同代码安全折叠与展开抑制 (`-Wl,--icf=safe` / `-fno-unroll-loops`)**：
    折叠模板实例化机器码，并遏制 Clang 对张量多重循环的暴力展开。
-7. **算子精度定点收敛 (`required_operators.config`)**：
+6. **算子精度定点收敛 (`required_operators.config`)**：
    将 `ConvTranspose`、`Erf`、`LeakyRelu` 等算子输入严格锚定为 `float`，剔除 `double` 与 `half` 的多余模板展开。
-8. **无引用 C/C++ 头文件无损剥离 ([`strip_aar_headers.py`](./scripts/strip_aar_headers.py))**：
+7. **无引用 C/C++ 头文件无损剥离 ([`strip_aar_headers.py`](./scripts/strip_aar_headers.py))**：
    针对 Kotlin/Java JNI 纯净宿主环境，在打包期利用底层 ZIP 记录重构技术，零重压缩直接剔除 AAR 内 890 KB 的 `headers/` 目录。
-9. **全链路 Android 15 16 KB 页面对齐与 CI 审计**：
+8. **全链路 Android 15 16 KB 页面对齐与 CI 审计**：
    显式注入 `-Wl,-z,max-page-size=16384`，并在 CI 中内建自动化 ELF `p_align` 断言，确保所有原生动态库对齐跨度均为 `0x4000`。
 
 ---

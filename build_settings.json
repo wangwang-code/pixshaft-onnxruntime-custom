@@ -10,7 +10,6 @@
     "--use_cache",
     "--disable_ml_ops",
     "--no_kleidiai",
-    "--enable_lto",
     "--cmake_generator=Ninja",
     "--build_java",
     "--build_shared_lib",
