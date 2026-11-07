@@ -21,6 +21,7 @@
     "--cmake_extra_defines=CMAKE_CXX_FLAGS_RELEASE=-O3 -DNDEBUG -fno-unroll-loops -fno-asynchronous-unwind-tables -fno-math-errno",
     "--cmake_extra_defines=onnxruntime_DISABLE_SPARSE_TENSORS=ON",
     "--cmake_extra_defines=onnxruntime_DISABLE_OPTIONAL_TYPE=ON",
+    "--cmake_extra_defines=onnxruntime_DISABLE_EXTERNAL_INITIALIZERS=ON",
     "--cmake_extra_defines=onnxruntime_USE_SVE=OFF",
     "--cmake_extra_defines=onnxruntime_BUILD_UNIT_TESTS=OFF",
     "--cmake_extra_defines=onnxruntime_DEV_MODE=OFF",
