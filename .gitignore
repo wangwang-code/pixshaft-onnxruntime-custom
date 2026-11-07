@@ -5,7 +5,10 @@ build/
 aar_out/
 aar_extracted/
 tmp*/
-dist*/
+artifacts_out/
+smoke_test/
+*.dex
+*.class
 .idea/
 .vscode/
 *.pyc
