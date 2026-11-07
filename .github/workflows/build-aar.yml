@@ -137,6 +137,9 @@ jobs:
             echo "Using existing AAR: ./onnxruntime-android-custom.aar"
           fi
 
+          # Strip unreferenced C/C++ header files (890 KB uncompressed space / 164 KB in archive)
+          python3 ./scripts/strip_aar_headers.py ./onnxruntime-android-custom.aar
+
           # Inspect .so sizes inside AAR
           mkdir -p ./aar_extracted
           unzip -q ./onnxruntime-android-custom.aar -d ./aar_extracted
