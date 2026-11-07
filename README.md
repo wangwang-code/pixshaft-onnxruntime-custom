@@ -54,8 +54,15 @@ dependencies {
 
 ---
 
-## ⚡ 自动化构建与极速发布机制
+## ⚡ CI/CD 双流彻底解耦与极速发布机制
 
-- **全自动 CI**：基于 GitHub Actions + Sonatype Central Portal API，构建产物自动经 GPG 免密签名、POM 元数据封装并直传发布到 Maven Central。
-- **极速发布（~30 秒）**：内置 `reuse_cached_aar` 产物复用逻辑，在非算子变动的发布（如更新版本号、重试部署等）时，直接复用已验证的 AAR 产物，跳过漫长的 C++ 编译，**30 秒内即可完成全球发版**。
-- **版本格式与防缓存**：支持 `1.24.3-shaft-{commit_hash}` 动态版本号，每次代码或算子变动自动递增，Gradle 天然免疫缓存错乱。
+为了保护 Maven Central 上传额度并确保发布的 AAR 100% 经过真机与功能验证，本项目与 `ncnn-android-shaft` 保持统一的工程架构，实施双流彻底解耦：
+
+1. **日常构建流 (`.github/workflows/build-aar.yml`)**：
+   - **专职负责编译与产物输出**：按 `required_operators.config` 算子并集编译 arm64-v8a AAR，并输出 `onnxruntime-android-custom` Actions Artifact；
+   - **深度 ccache 加速**：注入 `CCACHE_COMPILERCHECK=content`、`CCACHE_NOHASHDIR=1`、`CCACHE_BASEDIR` 与 `CCACHE_SLOPPINESS`，并在 `build_params` 注入 `--use_cache` 与 CMake 编译器启动器，彻底规避跨 Runner 绝对路径导致的缓存失效，使得重复增量构建时间大幅缩减；
+   - **绝不自动上传**：杜绝每次试验性构建浪费 Maven Central 发布配额与版本号污染。
+
+2. **独立发布流 (`.github/workflows/publish-central.yml`)**：
+   - **手动按需触发 (`workflow_dispatch`)**：输入指定版本号（如 `1.24.3-shaft-xxxx` 或缺省 `auto`）；
+   - **零等待发布**：自动拉取最新一次（或指定 Run ID）已验证成功的 AAR 产物，跳过漫长的 C++ 编译，在 30 秒内完成 POM 生成、JavaDoc/Sources 桩 Jar 封装、SHA1/MD5 校验和计算、GPG 免密签名与 Sonatype Central Portal API 上传。

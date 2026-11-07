@@ -11,18 +11,10 @@ on:
         description: 'Publish as GitHub Release'
         type: boolean
         default: false
-      publish_to_central:
-        description: 'Publish to Maven Central Portal'
-        type: boolean
-        default: true
-      artifact_version:
-        description: 'Version to publish (default: auto for 1.24.3-shaft-{commit_hash})'
-        required: false
-        default: 'auto'
       reuse_cached_aar:
         description: 'Reuse previously built AAR (fast publish, skips 30m compilation)'
         type: boolean
-        default: true 
+        default: false 
 
 permissions:
   contents: write
@@ -85,7 +77,7 @@ jobs:
         uses: hendrikmuhs/ccache-action@v1.2
         with:
           key: ${{ runner.os }}-onnxruntime-ccache
-          max-size: 2G
+          max-size: 5G
 
       - name: Locate Android SDK and NDK
         if: steps.check-cache.outputs.found != 'true'
@@ -107,6 +99,11 @@ jobs:
 
       - name: Build custom AAR package (arm64-v8a)
         if: steps.check-cache.outputs.found != 'true'
+        env:
+          CCACHE_COMPILERCHECK: content
+          CCACHE_NOHASHDIR: "1"
+          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_SLOPPINESS: include_file_ctime,include_file_mtime,time_macros
         run: |
           python3 onnxruntime/tools/ci_build/github/android/build_aar_package.py \
             ./build_settings.json \
@@ -115,6 +112,11 @@ jobs:
             --android_sdk_path "$ANDROID_HOME" \
             --android_ndk_path "${{ steps.android-env.outputs.ndk_path }}" \
             --build_dir ./build
+
+      - name: Show CCache Statistics
+        if: steps.check-cache.outputs.found != 'true'
+        run: |
+          ccache -s
 
       - name: Inspect generated AAR and measure size
         id: measure
@@ -171,36 +173,3 @@ jobs:
             --repo "${{ github.repository }}" \
             --title "ONNX Runtime Custom AAR ($TAG_NAME)" \
             --notes "Custom minimal ONNX Runtime AAR for Pixiv-Shaft (arm64-v8a only, merged operator set covering raw ONNX ops and runtime fused ops like MatMulIntegerToFloat)."
-
-      - name: Publish to Maven Central Portal
-        if: ${{ github.event.inputs.publish_to_central == 'true' || github.event.inputs.publish_to_central == '' }}
-        env:
-          GPG_PRIVATE_KEY: ${{ secrets.OSSRH_GPG_SECRET_KEY }}
-          GPG_PASSPHRASE: ${{ secrets.OSSRH_GPG_PASSPHRASE }}
-          SONATYPE_CENTRAL_TOKEN: ${{ secrets.SONATYPE_CENTRAL_TOKEN }}
-        run: |
-          if [ -n "$GPG_PRIVATE_KEY" ]; then
-            echo "$GPG_PRIVATE_KEY" | gpg --batch --import || true
-          fi
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          VER="${{ github.event.inputs.artifact_version }}"
-          if [ -z "$VER" ] || [ "$VER" = "auto" ]; then
-            VER="1.24.3-shaft-${SHORT_SHA}"
-          fi
-          echo "Publishing version to Maven Central: $VER"
-          python3 ./publish_central.py \
-            --aar ./onnxruntime-android-custom.aar \
-            --group-id io.github.wangwang-code \
-            --artifact-id onnxruntime-android-shaft \
-            --version "$VER" \
-            --gpg-passphrase "$GPG_PASSPHRASE" \
-            --central-token "$SONATYPE_CENTRAL_TOKEN" \
-            --publishing-type AUTOMATIC
-
-      - name: Upload Central Bundle Artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: central-bundle
-          path: ./bundle.zip
-          if-no-files-found: ignore
